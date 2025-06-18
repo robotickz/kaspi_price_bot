@@ -1,0 +1,42 @@
+{% extends 'main.html' %}
+{% load static %}
+
+{% block content %}
+
+    <!-- Контент -->
+    <div class="container text-center">
+        <img src="{% static 'images/code.png' %}" width="56px;">
+        <br>
+        <h5>Укажите данные для интеграции</h5>
+        <form method="post">
+            {% csrf_token %}
+            <div class="mb-3 col-3 mx-auto">
+                <input type="text" class="form-control" id="username" name="username" placeholder="логин" required>
+            </div>
+            <div class="mb-3 mt-3 col-3 mx-auto">
+                <input type="text" class="form-control" id="password" name="password" placeholder="пароль" required>
+            </div>
+            <div class="mb-3 mt-3 col-3 mx-auto">
+                <input type="text" class="form-control" id="token" name="token" placeholder="API токен" required>
+            </div>
+            <div class="mb-3 col-3 mx-auto">
+                <button id="formSubmitButton" type="submit" class="form-control">Добавить</button>
+            </div>
+        </form>
+
+    </div>
+
+    <script>
+        document.getElementsByTagName("form")[0].onsubmit = function () {
+            const spinner = document.createElement("span")
+            spinner.className = "spinner-border spinner-border-sm"
+            spinner.ariaHidden = "true"
+            spinner.role = "status"
+            const button = document.getElementById("formSubmitButton")
+            button.disabled = true
+            button.innerHTML = ''
+            button.appendChild(spinner)
+        }
+    </script>
+
+{% endblock content %}

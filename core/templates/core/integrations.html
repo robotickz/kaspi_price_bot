@@ -1,0 +1,156 @@
+{% extends 'main.html' %}
+{% load static %}
+
+{% block content %}
+    <div class="integrations">
+        <div class="container">
+            <div class="d-flex justify-content-between mb-3">
+                <input type="text" id="myInputIntTable" onkeyup="searchInTable()" placeholder="начните вводить буквы...">
+                {% if user.employee.company.first.integrations.all|length < 5 or perms.account.add_employee %}
+                    <a href="{% url 'core:integration-add-view' %}" class="btn btn-outline-success btn-sm" role="button">Добавить</a>
+                {% endif %}
+            </div>
+            <table class="table table-striped table-dark" id="integrationsTable">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Интеграция</th>
+                        <th>Статус</th>
+                        <th>XML ссылка</th>
+                        <th>Действия</th>
+                        <th>Обновить список товаров</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for integration in user.employee.company.first.integrations.all %}
+                        <tr>
+                            <th>{{ integration.id }}</th>
+                            <td>Каспи магазин {{ integration.shop_name }}</td>
+                            <td id="status{{ integration.pk }}">
+                                {% if integration.in_parsing_process %}
+                                	Обработка товаров...
+                                {% else %}
+                                	{% if integration.status %}
+                                        Активный
+                                    {% else %}
+                                        Не активный
+                                    {% endif %}
+                                {% endif %} 
+                                
+                            </td>
+                            <td><a href="http://193.108.114.174/media/{{ integration.shop_name }}_{{ integration.partner_id }}.xml" onclick="copyURI(event)">Скопировать</a></td>
+                            <td>{{ integration.last_update|date:"d.m.y H:i" }}</td>
+                            <td>
+                                {% if integration.admin_enabled %}
+                                    <a onclick="alert('Даные обновляются! Подождите 30 минут.')" href="{% url 'core:integration-update-products' integration.id %}">
+                                        <img src="{% static 'icons/circle-arrows.png' %}" width="20px;">
+                                    </a>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <a data-bs-toggle="modal" data-bs-target="#deleteAPIModal" onclick="setModal('Каспи магазин {{ integration.shop_name }}', '{% url 'core:integration-delete' integration.id %}')">
+                                    <img src="{% static 'icons/trash.svg' %}" width="20px;">
+                                </a>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+
+        <!-- Delete API Integration Modal -->
+        <div class="modal fade" id="deleteAPIModal" tabindex="-1" aria-labelledby="deleteAPIModalLabel" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h1 class="modal-title fs-5" id="deleteAPIModalLabel">Подтвердите</h1>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <h3>Будет удалена интеграция "<span id="modalIntegrationName"></span>"</h3>
+                      </div>
+
+                    <div class="modal-footer">
+                        <a id="modalButton"><button type="button" class="btn btn-danger">Да</button></a>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Нет</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function searchInTable() {
+            var input, filter, table, tr, td, i, txtValue;
+            input = document.getElementById("myInputIntTable");
+            filter = input.value.toUpperCase();
+            table = document.getElementById("integrationsTable");
+            tr = table.getElementsByTagName("tr");
+
+            for (i = 0; i < tr.length; i++) {
+                td = tr[i].getElementsByTagName("td")[0];
+                if (td) {
+                    txtValue = td.textContent || td.innerText;
+                    if (txtValue.toUpperCase().indexOf(filter) > -1) {
+                        tr[i].style.display = "";
+                    } else {
+                        tr[i].style.display = "none";
+                    }
+                }
+            }
+        }
+        function copyURI(evt) {
+            evt.preventDefault();
+            const encoded = encodeURI(evt.target.getAttribute('href'));
+            navigator.clipboard.writeText(encoded).then(() => {
+              /* clipboard successfully set */
+                alert("Ссылка скопирована в буфер обмена!")
+            }, () => {
+              /* clipboard write failed */
+                alert("Не удалось скопировать в буфер обмена!")
+            });
+        }
+    </script>
+    <script>
+        function setModal(name, url) {
+            document.getElementById("modalIntegrationName").innerText = name
+            document.getElementById("modalButton").href = url
+        }
+
+        class Integration {
+            constructor(id, status, adminEnabled, inParsingProcess) {
+                this.id = id
+                this.statusTd = document.getElementById(`status${this.id}`)
+                this.status = status
+                this.adminEnabled = adminEnabled
+                this.inParsingProcess = inParsingProcess
+                this.init()
+            }
+
+            init() {
+                if (this.adminEnabled && !this.inParsingProcess) {
+                    this.statusTd.style.cursor = "pointer"
+                    this.statusTd.addEventListener('dblclick', ()=>{
+                        this.change_status()
+                        fetch(`${window.location.protocol}//${window.location.host}/integration/update/${this.id}?status=${this.status}`)
+                    })
+                }
+            }
+
+            change_status() {
+                this.status = !this.status
+                if (this.status) {
+                    this.statusTd.innerText = 'Активный'
+                } else {
+                    this.statusTd.innerText = 'Не активный'
+                }
+            }
+        }
+        {% for integration in user.employee.company.first.integrations.all %}
+            const integration{{ integration.pk }} = new Integration({{ integration.pk }}, {{ integration.status|lower }}, {{ integration.admin_enabled|lower }}, {{ integration.in_parsing_process|lower }})
+        {% endfor %}
+    </script>
+
+{% endblock content %}

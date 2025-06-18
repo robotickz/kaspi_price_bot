@@ -1,0 +1,737 @@
+{% extends 'main.html' %}
+{% load static %}
+{% load bot_settings_filters %}
+
+{% block header %}
+    <style>
+        .accordion {
+            {#background-color: #eee;#}
+            color: #444;
+            cursor: pointer;
+            padding: 18px;
+            width: 100%;
+            border: none;
+            text-align: left;
+            outline: none;
+            font-size: 15px;
+            transition: 0.4s;
+        }
+
+        .active, .accordion:hover {
+            {#background-color: #ccc;#}
+        }
+
+        .panel {
+            padding: 0 18px;
+            {#background-color: white;#}
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.2s ease-out;
+        }
+    </style>
+{% endblock header %}
+
+{% block content %}
+
+    <div class="products">
+        <div class="row">
+            <div class="dropdown mb-3" style="width: 30vw">
+                <button class="btn btn-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown"
+                        aria-expanded="false">
+                    {{ integration.shop_name }}
+                </button>
+                <ul class="dropdown-menu">
+                    {% for shop in user.employee.company.first.integrations.all %}
+                        <li><a class="dropdown-item"
+                               href="{% url 'core:integration-products-view' shop.pk %}">{{ shop.shop_name }}</a></li>
+                    {% endfor %}
+                </ul>
+            </div>
+            <div style="width: 60vw">
+{#                <h3>Опубликовано: {{ published }}. В архиве: {{ archived }}</h3>#}
+            </div>
+        </div>
+        {% if integration.in_parsing_process %}
+            <h1>Обработано товаров: {{ integration.parsing_progress }}</h1>
+        {% else %}
+            <div class="d-flex justify-content-between mb-3">
+                <input type="text" id="myInputProducts{{ integration.id }}" placeholder="начните поиск..." style="height: 32px!important;">
+                <div>
+                    <input id="globalStepInput" type="number" placeholder="Шаг демпинга">
+                    <button id="globalStepButton">Установить глобально</button>
+                </div>
+                <div class="col-2">
+                    <label for="globalMinPriceInput" class="form-label" style="color: #999999!important">Процент снижения <span id="rangeLabel">5</span></label>
+                    <input class="form-range" id="globalMinPriceInput" type="range" value="5" min="5" max="30">
+                    <button id="globalMinPriceButton">Установить глобально</button>
+                </div>
+                <div>
+                    <button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="modal"
+                            data-bs-target="#filterModal">
+                        <img src="{% static 'icons/funnel.svg' %}" width="20px;"> Фильтр
+                    </button>
+                    <a href="{% url 'core:export_to_file' integration.pk %}">
+                        <button type="button" class="btn btn-outline-warning btn-sm">
+                            <img src="{% static 'icons/arrow-up-square.svg' %}" width="20px;"> Экспорт
+                        </button>
+                    </a>
+                    <button type="button" class="btn btn-outline-success btn-sm" data-bs-toggle="modal"
+                            data-bs-target="#importModal">
+                        <img src="{% static 'icons/arrow-down-square.svg' %}" width="20px;"> Импорт
+                    </button>
+                </div>
+            </div>
+            <div id="productsIn{{ integration.shop_name }}">
+                {% include 'includes/paginator.html' with page_obj=products_in_integration %}
+                <br>
+                {% for product_in_integration in products_in_integration %}
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <div class="row product-brief-info mb-3 accordion">
+                                <div class="col-1">
+                                    <img src="{{ product_in_integration.product.image_url }}"
+                                         alt="{{ product_in_integration.product.name }}" width="56px;">
+                                </div>
+                                <div class="col-11">
+                                    <a style="display: table" href="{% if 'kaspi.kz' in product_in_integration.product.kaspi_url %}{{ product_in_integration.product.kaspi_url }}{% else %}https://kaspi.kz/shop{{ product_in_integration.product.kaspi_url }}{% endif %}" target="_blank">
+                                        <h6>{{ product_in_integration.product.name }}</h6>
+                                    </a> {{ product_in_integration.product.brand }}
+                                    / {{ product_in_integration.product.kaspi_code }}
+                                    / {{ product_in_integration.sku }}
+                                </div>
+                            </div>
+                            <div class="products-table panel">
+                                <table class="table table-dark table-hover table-bordered"
+                                       id="productsTable{{ product_in_integration.pk }}">
+                                    <thead>
+                                    <tr>
+                                        <th>Город/место</th>
+                                        <th>Магазины</th>
+                                        <th>Мониторинг/1 место/посл. место</th>
+                                        <th>Текущая цена</th>
+                                        <th><span id="globalMinPrice{{ product_in_integration.pk }}">Мин. цена</span></th>
+                                        <th><span id="globalMaxPrice{{ product_in_integration.pk }}">Макс. цена</span></th>
+                                        <th>Шаг</th>
+                                        <th>
+                                            <div class="form-check form-switch">
+                                                <input class="form-check-input" type="checkbox" role="switch"
+                                                       id="active_all{{ product_in_integration.pk }}"
+                                                       {% if product_in_integration.is_any_active %}checked{% endif %}>
+                                            </div>
+                                        </th>
+                                    </tr>
+                                    </thead>
+                                    <tbody id="tbody{{ product_in_integration.pk }}">
+                                    {% for bot_setting in product_in_integration.bot_settings.all|by_city:city_ids|by_min_max_price:min_max_price %}
+                                        {% if bot_setting.active %}
+                                            <tr>
+                                                <td>
+                                                    <a href="https://kaspi.kz/shop{{ product_in_integration.product.kaspi_url }}?c={{ bot_setting.city.id_in_kaspi }}#!/item" target="_blank">{{ bot_setting.city.name }}</a>
+                                                    <span
+                                                            class="badge rounded-pill">
+                                                        {{ bot_setting.current_place_in_city|default_if_none:"?" }}
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    {% for pickup_point in bot_setting.pickup_points.points %}
+                                                        <spun style="color: {% if pickup_point.available == 'yes' %}green{% else %}red{% endif %}">
+                                                            {{ pickup_point.name }}
+                                                        </spun>
+                                                    {% endfor %}
+
+                                                </td>
+                                                <td>
+                                                    <span style="color: lightgreen;">{% if bot_setting.last_update %}{{ bot_setting.last_update|date:"d.m.y H:i" }}{% else %}-{% endif %}</span>
+                                                    / {{ bot_setting.first_place_price|default_if_none:"-" }}
+                                                    ₸/ {{ bot_setting.last_place_price|default_if_none:"-" }} ₸
+                                                </td>
+                                                <td>{{ bot_setting.current_price|default_if_none:"-" }} ₸</td>
+                                                <td><span
+                                                        id="minPrice{{ bot_setting.pk }}">{{ bot_setting.min_price|default_if_none:"0" }}</span>
+                                                    ₸
+                                                </td>
+                                                <td><span
+                                                        id="maxPrice{{ bot_setting.pk }}">{{ bot_setting.max_price|default_if_none:"0" }}</span>
+                                                    ₸
+                                                </td>
+                                                <td><span
+                                                        id="step{{ bot_setting.pk }}">{{ bot_setting.step|default_if_none:"0" }}</span>
+                                                    ₸
+                                                </td>
+                                                <td>
+                                                    <div class="form-check form-switch">
+                                                        <input class="form-check-input" type="checkbox" role="switch"
+                                                               id="active{{ bot_setting.pk }}"
+                                                               {% if bot_setting.active %}checked{% endif %}>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        {% endif %}
+
+                                    {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                {% endfor %}
+                {% include 'includes/paginator.html' with page_obj=products_in_integration %}
+            </div>
+        {% endif %}
+    </div>
+
+
+
+    <!-- Filter Modal -->
+    <div class="modal fade" id="filterModal" tabindex="-1" aria-labelledby="filterModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h1 class="modal-title fs-5" id="filterModalLabel">Фильтры</h1>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+
+                <div class="modal-body">
+                    <div class="row mb-4">
+                        <div class="col">
+                            <h5>Города:</h5>
+                            <div id="filterCityListDiv" style="height: 205px; overflow-y: scroll; overflow-x: hidden"></div>
+                        </div>
+                        <div class="col">
+                            <h5>Бренды:</h5>
+                            <div id="filterBrandListDiv" style="height: 205px; overflow-y: scroll; overflow-x: hidden"></div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col">
+                            <h5>Минимальная цена:</h5>
+                            <div id="minPriceFilterDiv">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" value="" id="minPriceSet">
+                                    <label class="form-check-label" for="minPriceSet">задана</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" value="" id="minPriceNotSet">
+                                    <label class="form-check-label" for="minPriceNotSet">не задана</label>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col">
+                            <h5>Максимальная цена:</h5>
+                            <div id="maxPriceFilterDiv">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" value="" id="maxPriceSet">
+                                    <label class="form-check-label" for="maxPriceSet">задана</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" value="" id="maxPriceNotSet">
+                                    <label class="form-check-label" for="maxPriceNotSet">не задана</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button onclick="applyFilter()" data-bs-dismiss="modal" type="button" class="btn btn-primary">Применить</button>
+                    <button onclick="clearFilter()" type="button" class="btn btn-secondary" data-bs-dismiss="modal">Сбросить фильтры</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Export Modal -->
+    <div class="modal fade" id="exportModal" tabindex="-1" aria-labelledby="exportModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h1 class="modal-title fs-5" id="exportModalLabel">Экспорт товаров</h1>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <select class="form-select">
+                        <option selected>Выберите магазин</option>
+                        <option value="1">Магазин Monotec</option>
+                        <option value="2">Магазин Демо</option>
+                    </select>
+                    <br>
+                    <button type="button" class="btn btn-success btn-sm">
+                        Экспортировать
+                    </button>
+                    <br><br>
+                    <div style="color: darkgrey; font-size: 12px;">
+                        <h6>Последний экспорт</h6>
+                        <p>название магазина + дата экспорта</p>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+{#    Import Modal#}
+    <div class="modal fade" id="importModal" tabindex="-1" aria-labelledby="importModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h1 class="modal-title fs-5" id="importModalLabel">Импортировать товары</h1>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <h6>Новый импорт</h6>
+                    <form method="post" action="{% url 'core:import_from_file' integration.pk %}"
+                          enctype="multipart/form-data">
+                        {% csrf_token %}
+                        <div class="input-group">
+                            <input type="file" class="form-control" id="inputGroupFile04" name="file"
+                                   aria-describedby="inputGroupFileAddon04" aria-label="Загрузить" accept="xlsx">
+                            <button class="btn btn-success" type="submit" id="inputGroupFileAddon04">Загрузить</button>
+                        </div>
+                    </form>
+                    <br><br>
+                    <div style="color: darkgrey; font-size: 12px;">
+                        <h6>Последний импорт</h6>
+                        <p>название магазина + дата импорта</p>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const filterCityList = []
+        class CityFilterCheckbox {
+            constructor(id_in_kaspi, name) {
+                this.id_in_kaspi = id_in_kaspi
+                this.name = name
+                this.checkboxDiv = document.createElement('div')
+                this.checkbox = document.createElement('input')
+                this.label = document.createElement('label')
+                this.init()
+            }
+
+            init() {
+                let currentUrl = new URL(window.location.href)
+                const cityListString = currentUrl.searchParams.get("city_ids") || ''
+                this.checkbox.id = this.id_in_kaspi
+                this.checkbox.value = `${this.id_in_kaspi}`
+                this.checkbox.type = 'checkbox'
+                this.checkbox.className = 'form-check-input'
+                this.checkbox.checked = cityListString.includes(`${this.id_in_kaspi}`)
+                this.label.for = this.id_in_kaspi
+                this.label.innerText = this.name
+                this.label.className = 'form-check-label'
+                this.checkboxDiv.appendChild(this.checkbox)
+                this.checkboxDiv.appendChild(this.label)
+                this.checkboxDiv.className = 'form-check'
+            }
+        }
+
+        {% for city in city_list %}
+        	filterCityList.push(new CityFilterCheckbox({{ city.1 }}, '{{ city.0 }}'))
+        {% endfor %}
+        filterCityList.sort((a, b) => b.checkbox.checked - a.checkbox.checked)
+        const filterCityListDiv = document.getElementById('filterCityListDiv')
+        for (let city of filterCityList) {
+            filterCityListDiv.appendChild(city.checkboxDiv)
+        }
+
+        const filterBrandList = []
+        class BrandFilterCheckbox {
+            constructor(name) {
+                this.name = name
+                this.checkboxDiv = document.createElement('div')
+                this.checkbox = document.createElement('input')
+                this.label = document.createElement('label')
+                this.init()
+            }
+
+            init() {
+                let currentUrl = new URL(window.location.href)
+                const brandListString = currentUrl.searchParams.get("brands") || ''
+                this.checkbox.id = this.name
+                this.checkbox.value = `${this.name}`
+                this.checkbox.type = 'checkbox'
+                this.checkbox.className = 'form-check-input'
+                this.checkbox.checked = brandListString.includes(`${this.name}`)
+                this.label.for = this.name
+                this.label.innerText = this.name
+                this.label.className = 'form-check-label'
+                this.checkboxDiv.appendChild(this.checkbox)
+                this.checkboxDiv.appendChild(this.label)
+                this.checkboxDiv.className = 'form-check'
+            }
+        }
+
+        let uniqueBrandList = []
+
+        {% for brand in all_brands %}
+            if (!uniqueBrandList.includes('{{ brand }}')) {
+                filterBrandList.push(new BrandFilterCheckbox('{{ brand }}'))
+                uniqueBrandList.push('{{ brand }}')
+            }
+        {% endfor %}
+        const filterBrandListDiv = document.getElementById('filterBrandListDiv')
+        filterBrandList.sort((a, b) => b.checkbox.checked - a.checkbox.checked)
+        for (let brand of filterBrandList) {
+            filterBrandListDiv.appendChild(brand.checkboxDiv)
+        }
+
+        function applyFilter() {
+            let queryString = ''
+            for (let brand of filterBrandList) {
+                if (brand.checkbox.checked) {
+                    queryString += queryString !== '' ? `;${brand.name}` : `${brand.name}`
+                }
+            }
+            let url = new URL(window.location.href)
+            if (queryString) {url.searchParams.set("brands", queryString)} else {url.searchParams.delete("brands")}
+            url.searchParams.delete("page")
+
+            queryString = ''
+            for (let city of filterCityList) {
+                if (city.checkbox.checked) {
+                    queryString += queryString !== '' ? `;${city.id_in_kaspi}` : `${city.id_in_kaspi}`
+                }
+            }
+            if (queryString) {url.searchParams.set("city_ids", queryString)} else {url.searchParams.delete("city_ids")}
+            
+            const minPriceSet = document.getElementById('minPriceSet')
+            const minPriceNotSet = document.getElementById('minPriceNotSet')
+            const maxPriceSet = document.getElementById('maxPriceSet')
+            const maxPriceNotSet = document.getElementById('maxPriceNotSet')
+            if (minPriceSet.checked) {
+                url.searchParams.set("min_price", 'true')
+            } else {
+                url.searchParams.delete("min_price")
+            }
+            if (minPriceNotSet.checked) {
+                url.searchParams.set("not_min_price", 'true')
+            } else {
+                url.searchParams.delete("not_min_price")
+            }
+            if (maxPriceSet.checked) {
+                url.searchParams.set("max_price", 'true')
+            } else {
+                url.searchParams.delete("max_price")
+            }
+            if (maxPriceNotSet.checked) {
+                url.searchParams.set("not_max_price", 'true')
+            } else {
+                url.searchParams.delete("not_max_price")
+            }
+            
+            window.open(url, "_self")
+        }
+
+        function clearFilter() {
+            let url = new URL(window.location.href)
+            url.searchParams.delete("city_ids")
+            url.searchParams.delete("brands")
+
+            window.open(url, "_self")
+        }
+
+    </script>
+
+    <script>
+        {% if integration.in_parsing_process %}
+            setTimeout(() => {location.reload()}, 60000)
+        {% endif %}
+
+        let botList = []
+
+        function visuallyChangeMinPriceToAllBotSettings(productId, price) {
+            for (let bot of botList) {
+                if (bot.productId === productId) {
+                    bot.setMinPriceText(price)
+                }
+            }
+        }
+
+        function visuallyChangeMaxPriceToAllBotSettings(productId, price) {
+            for (let bot of botList) {
+                if (bot.productId === productId) {
+                    bot.setMaxPriceText(price)
+                }
+            }
+        }
+
+        function isValid(value) {
+            return !!value;
+
+        }
+
+        class Product {
+            constructor(id) {
+                this.id = id
+                this.minPrice = document.getElementById(`globalMinPrice${this.id}`)
+                this.maxPrice = document.getElementById(`globalMaxPrice${this.id}`)
+                this.activeCheck = document.getElementById(`active_all${this.id}`)
+                this.init()
+            }
+
+            init() {
+                this.minPrice.style.cursor = "pointer"
+                this.maxPrice.style.cursor = "pointer"
+                this.minPrice.addEventListener('dblclick', () => {
+                    const minPriceTitle = this.minPrice.innerText
+                    if (this.minPrice.childElementCount === 0) {
+                        let minPrice = this.minPrice
+                        const id = this.id
+                        let firstMinPrice = 0
+                        for (let bot of botList) {
+                            if (bot.productId === this.id) {
+                                firstMinPrice = bot.minPriceTd.innerText
+                                break
+                            }
+                        }
+                        const editor = document.createElement('input')
+                        editor.value = `${firstMinPrice}`
+                        editor.type = 'number'
+                        editor.min = '0'
+                        editor.addEventListener("keyup", function (event) {
+                            if (event.key === "Enter" && isValid(editor.value)) {
+                                minPrice.innerHTML = ''
+                                minPrice.innerText = minPriceTitle
+                                visuallyChangeMinPriceToAllBotSettings(id, editor.value)
+                                fetch(`${window.location.protocol}//${window.location.host}/product/update/${id}?min_price=${editor.value}`)
+                            }
+                        })
+                        this.minPrice.innerHTML = ''
+                        this.minPrice.appendChild(editor)
+                    }
+                })
+                this.maxPrice.addEventListener('dblclick', () => {
+                    const maxPriceTitle = this.maxPrice.innerText
+                    if (this.maxPrice.childElementCount === 0) {
+                        let maxPrice = this.maxPrice
+                        const id = this.id
+                        let firstMaxPrice = 0
+                        for (let bot of botList) {
+                            if (bot.productId === this.id) {
+                                firstMaxPrice = bot.maxPriceTd.innerText
+                                break
+                            }
+                        }
+                        const editor = document.createElement('input')
+                        editor.value = `${firstMaxPrice}`
+                        editor.type = 'number'
+                        editor.min = '0'
+                        editor.addEventListener("keyup", function (event) {
+                            if (event.key === "Enter" && isValid(editor.value)) {
+                                maxPrice.innerHTML = ''
+                                maxPrice.innerText = maxPriceTitle
+                                visuallyChangeMaxPriceToAllBotSettings(id, editor.value)
+                                fetch(`${window.location.protocol}//${window.location.host}/product/update/${id}?max_price=${editor.value}`)
+                            }
+                        })
+                        this.maxPrice.innerHTML = ''
+                        this.maxPrice.appendChild(editor)
+                    }
+                })
+                this.activeCheck.addEventListener('click', () => {
+                    fetch(`${window.location.protocol}//${window.location.host}/product/update/${this.id}?active=${this.activeCheck.checked}`)
+                })
+            }
+        }
+
+        class BotSetting {
+            constructor(id, productId) {
+                this.id = id
+                this.productId = productId
+                this.minPriceTd = document.getElementById(`minPrice${this.id}`)
+                this.maxPriceTd = document.getElementById(`maxPrice${this.id}`)
+                this.stepTd = document.getElementById(`step${this.id}`)
+                this.activeTd = document.getElementById(`active${this.id}`)
+                this.init()
+            }
+
+            init() {
+                this.minPriceTd.style.cursor = "pointer"
+                this.maxPriceTd.style.cursor = "pointer"
+                this.stepTd.style.cursor = "pointer"
+                this.activeTd.style.cursor = "pointer"
+                this.minPriceTd.addEventListener('dblclick', () => {
+                    if (this.minPriceTd.childElementCount === 0) {
+                        let minPriceTd = this.minPriceTd
+                        const id = this.id
+                        const editor = document.createElement('input')
+                        editor.value = this.minPriceTd.innerText
+                        editor.type = 'number'
+                        editor.min = '0'
+                        editor.addEventListener("keyup", function (event) {
+                            if (event.key === "Enter" && isValid(editor.value)) {
+                                minPriceTd.innerHTML = ''
+                                minPriceTd.innerText = editor.value
+                                fetch(`${window.location.protocol}//${window.location.host}/bot_setting/update/${id}?min_price=${editor.value}`)
+                            }
+                        })
+                        this.minPriceTd.innerHTML = ''
+                        this.minPriceTd.appendChild(editor)
+                    }
+                })
+                this.maxPriceTd.addEventListener('dblclick', () => {
+                    if (this.maxPriceTd.childElementCount === 0) {
+                        let maxPriceTd = this.maxPriceTd
+                        const id = this.id
+                        const editor = document.createElement('input')
+                        editor.value = this.maxPriceTd.innerText
+                        editor.type = 'number'
+                        editor.min = '0'
+                        editor.addEventListener("keyup", function (event) {
+                            if (event.key === "Enter" && isValid(editor.value)) {
+                                maxPriceTd.innerHTML = ''
+                                maxPriceTd.innerText = editor.value
+                                fetch(`${window.location.protocol}//${window.location.host}/bot_setting/update/${id}?max_price=${editor.value}`)
+                            }
+                        })
+                        this.maxPriceTd.innerHTML = ''
+                        this.maxPriceTd.appendChild(editor)
+                    }
+                })
+                this.stepTd.addEventListener('dblclick', () => {
+                    if (this.stepTd.childElementCount === 0) {
+                        let stepTd = this.stepTd
+                        const id = this.id
+                        const editor = document.createElement('input')
+                        editor.value = this.stepTd.innerText
+                        editor.type = 'number'
+                        editor.min = '0'
+                        editor.addEventListener("keyup", function (event) {
+                            if (event.key === "Enter" && isValid(editor.value)) {
+                                stepTd.innerHTML = ''
+                                stepTd.innerText = editor.value
+                                fetch(`${window.location.protocol}//${window.location.host}/bot_setting/update/${id}?step=${editor.value}`)
+                            }
+                        })
+                        this.stepTd.innerHTML = ''
+                        this.stepTd.appendChild(editor)
+                    }
+                })
+                this.activeTd.addEventListener('click', () => {
+                    fetch(`${window.location.protocol}//${window.location.host}/bot_setting/update/${this.id}?active=${this.activeTd.checked}`)
+                })
+            }
+            setMinPriceText(price) {
+                this.minPriceTd.innerText = price
+            }
+
+            setMaxPriceText(price) {
+                this.maxPriceTd.innerText = price
+            }
+        }
+        {% for product in products_in_integration %}
+            const product{{ product.pk }} = new Product(
+                {{ product.pk }}
+            )
+            {% for bot_setting in product.bot_settings.all|by_city:city_ids|by_min_max_price:min_max_price %}
+            	{% if bot_setting.active %}
+                    botList.push(new BotSetting({{ bot_setting.pk }}, {{ product.pk }}))
+                {% endif %}
+            {% endfor %}
+        {% endfor %}
+
+        const stepInput = document.getElementById('globalStepInput')
+        const stepButton = document.getElementById('globalStepButton')
+        stepButton.addEventListener('click', () => {
+            const spinner = document.createElement("span")
+            spinner.className = "spinner-border spinner-border-sm"
+            spinner.ariaHidden = "true"
+            spinner.style.color = "green"
+            spinner.role = "status"
+            stepButton.disabled = true
+            stepButton.innerHTML = ''
+            stepButton.appendChild(spinner)
+            alert('Шаг демпинга обнавятся в течении нескольких минут.')
+            let integrationId = "{{ integration.pk }}"
+            fetch(`${window.location.protocol}//${window.location.host}/bot_setting/update-all/?step=${stepInput.value}&id=${integrationId}`).then(resp => {
+                if (resp.status === 200) {
+                    return resp.json()
+                } else {
+                    console.log("Status: " + resp.status)
+                    return Promise.reject("server")
+                }
+            })
+            .then(dataJson => {
+                if (dataJson['success']) {
+                    location.reload()
+                }
+            })
+            .catch(err => {
+                if (err === "server") return
+                console.log(err)
+            })
+        })
+        
+        const minPriceInput = document.getElementById('globalMinPriceInput')
+        const minPriceButton = document.getElementById('globalMinPriceButton')
+        const rangeLabel = document.getElementById('rangeLabel')
+        rangeLabel.style.color = '#fff'
+        minPriceButton.addEventListener('click', () => {
+            const spinner = document.createElement("span")
+            spinner.className = "spinner-border spinner-border-sm"
+            spinner.ariaHidden = "true"
+            spinner.style.color = "green"
+            spinner.role = "status"
+            minPriceButton.disabled = true
+            minPriceButton.innerHTML = ''
+            minPriceButton.appendChild(spinner)
+            alert('Минимальные цены обнавятся в течении нескольких минут.')
+            let integrationId = "{{ integration.pk }}"
+            fetch(`${window.location.protocol}//${window.location.host}/bot_setting/update-all/?minPrice=${minPriceInput.value}&id=${integrationId}`).then(resp => {
+                if (resp.status === 200) {
+                    return resp.json()
+                } else {
+                    console.log("Status: " + resp.status)
+                    return Promise.reject("server")
+                }
+            })
+            .then(dataJson => {
+                if (dataJson['success']) {
+                    location.reload()
+                }
+            })
+            .catch(err => {
+                if (err === "server") return
+                console.log(err)
+            })
+        })
+        minPriceInput.addEventListener('mousemove', () => {
+            rangeLabel.innerText = minPriceInput.value
+        })
+
+        const searchInput = document.getElementById('myInputProducts{{ integration.id }}')
+        searchInput.addEventListener('keyup', (e) => {
+            if (event.key === "Enter") {
+                if (searchInput.value) {
+                    window.location.href = '{% url 'core:products-view' %}{{ integration.id }}' + `?search=${searchInput.value}`
+                }
+            }
+        })
+
+    </script>
+
+    <script>
+        let acc = document.getElementsByClassName("accordion");
+
+        for (let i = 0; i < acc.length; i++) {
+            acc[i].addEventListener("click", function () {
+                this.classList.toggle("active");
+                var panel = this.nextElementSibling;
+                if (panel.style.maxHeight) {
+                    panel.style.maxHeight = null;
+                } else {
+                    panel.style.maxHeight = panel.scrollHeight + "px";
+                }
+            });
+        }
+    </script>
+
+{% endblock content %}

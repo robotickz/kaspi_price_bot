@@ -1,0 +1,41 @@
+{% extends 'main.html' %}
+{% load static %}
+
+{% block title %}Registration{% endblock title %}
+
+{% block content %}
+    <div class="login">
+        <div class="container text-center">
+            <img src="{% static 'images/login.png' %}" width="56px;">
+            <h1>Регистрация 🚀</h1>
+            <form method="post">
+                {% csrf_token %}
+                <div class="mb-3 mt-3 col-3 mx-auto">
+                    <label class="form-label">Название компании</label>
+                    <input type="text" class="form-control" id="company_name" placeholder="Marwin" name="company_name">
+                </div>
+                <div class="mb-3 mt-3 col-3 mx-auto">
+                    <label class="form-label">Имя руководителя компании</label>
+                    <input type="text" class="form-control" id="name" name="name" placeholder="Владимир">
+                </div>
+                <div class="mb-3 mt-3 col-3 mx-auto">
+                    <label class="form-label">Телефон</label>
+                    <input type="tel" class="form-control" id="phone" name="phone" placeholder="+77*********" required>
+                </div>
+                <div class="mb-3 mt-3 col-3 mx-auto">
+                    <label class="form-label">Адрес электронной почты</label>
+                    <input type="email" class="form-control" id="email" placeholder="name@mail.com" name="email"
+                           required>
+                </div>
+                <div class="mb-3 col-3 mx-auto">
+                    <label class="form-label">Придумайте пароль</label>
+                    <input type="password" class="form-control" id="password" name="password" placeholder="******"
+                           required>
+                </div>
+                <div class="mb-3 col-3 mx-auto">
+                    <button type="submit" class="form-control" id="">Регистрация</button>
+                </div>
+            </form>
+        </div>
+    </div>
+{% endblock content %}

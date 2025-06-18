@@ -1,0 +1,66 @@
+{% extends 'main.html' %}
+
+{% block content %}
+
+    <!-- Контент -->
+    <br><br>
+    <div class="profile container">
+        <div class="row">
+            <div class="col-4">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">{{ user.first_name }}</h5>
+                        <p class="card-text">Компания: {{ user.employee.company.first.name }}</p>
+                        <p class="card-text">
+                            Эл. почта: {{ user.email }}
+                        </p>
+                        <p class="card-text">
+                            Номер тел.: {{ user.employee.phone }}</p>
+                        <a href="#" class="btn btn-primary">Обновить данные</a>
+                    </div>
+                </div>
+            </div>
+            <div class="col-8">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Доступы</h5>
+                        <p class="card-text">Доступные разделы</p>
+                        <table class="table table-striped table-dark">
+                            <thead>
+                                <tr>
+                                    <th scope="col">Модуль</th>
+                                    <th scope="col">Просмотр</th>
+                                    <th scope="col">Изменение</th>
+                                    <th scope="col">Удаление</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <th>Интеграция</th>
+                                    <td>Да</td>
+                                    <td>Да</td>
+                                    <td>Да</td>
+                                </tr>
+                                <tr>
+                                    <th>Сотрудники</th>
+                                    <td>Да</td>
+                                    <td>Да</td>
+                                    <td>Да</td>
+                                </tr>
+                                <tr>
+                                    <th>Товары Kaspi</th>
+                                    <td>Да</td>
+                                    <td>Да</td>
+                                    <td>Да</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+
+    </div>
+
+{% endblock content %}

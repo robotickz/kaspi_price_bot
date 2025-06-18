@@ -1,0 +1,60 @@
+{% load static %}
+<!doctype html>
+<html lang="ru">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet"
+          integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
+    <link href="{% static 'css/main.css' %}" rel="stylesheet">
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+{#    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.6.0/dist/full.min.css" rel="stylesheet" type="text/css" />#}
+{#    <script src="https://cdn.tailwindcss.com"></script>#}
+    <title>{% block title %}Kaspi Bot Test{% endblock title %}</title>
+    {% block header %}{% endblock header %}
+</head>
+
+<body style="background-color: black;">
+<!-- ШАПКА -->
+<div class="header">
+    <div class="container">
+        {% with request.resolver_match.url_name as url_name %}
+            <ul class="nav nav-pills">
+                <li class="nav-item">
+                    <a class="nav-link {% if url_name == 'index-view' %}active{% endif %}" aria-current="page" href="{% url 'core:index-view' %}">Главная</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if url_name == 'integration-view' %}active{% endif %}" href="{% url 'core:integration-view' %}">Интеграция</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if url_name == 'products-view' %}active{% endif %}" href="{% url 'core:products-view' %}">Товары</a>
+                </li>
+{#                <li class="nav-item">#}
+{#                    <a class="nav-link {% if url_name == 'staff-view' %}active{% endif %}" href="{% url 'core:staff-view' %}">Сотрудники</a>#}
+{#                </li>#}
+                <li class="nav-item dropdown">
+                    <a class="nav-link {% if url_name == 'profile-view' %}active{% endif %} dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown"
+                       aria-expanded="false">
+                        {{ user.first_name }}
+                    </a>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="{% url 'account:profile-view' %}">Мой профиль</a></li>
+                        <li><a class="dropdown-item" href="{% url 'account:logout-view' %}">Выйти</a></li>
+                    </ul>
+                </li>
+            </ul>
+        {% endwith %}
+    </div>
+</div>
+
+{% block content %}
+
+{% endblock content %}
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM"
+        crossorigin="anonymous"></script>
+</body>
+
+</html>

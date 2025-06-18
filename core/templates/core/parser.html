@@ -1,0 +1,58 @@
+<script>
+    async function getDataForParsing() {
+        const response = await fetch('https://k1.buc.kz/get_products_for_parsing/')
+        return await response.json()
+    }
+
+    async function parseProduct(product, cities) {
+        const data_to_send = {
+            'kaspi_code': product['product_code'],
+            'cities': [],
+        }
+        for (const city_id of cities) {
+            let page = 0
+            const limit = 50
+            const headers = {
+                "Connection": "keep-alive",
+                "Content-Type": "application/json",
+                "Accept": "*/*",
+                "Accept-Encoding": "gzip, deflate, br",
+                "Referrer": `${product['product_url']}?c=${city_id}`
+            }
+            const body = {
+                "cityId": `${city_id}`,
+                "id": `${product['product_code']}`,
+                "merchantUID": "",
+                "limit": limit,
+                "page": page,
+                "sort": true
+            }
+            const allOffers = []
+
+            async function makeOfferRequest() {
+                return await fetch(`https://kaspi.kz/yml/offer-view/offers/${product["product_code"]}`, {
+                    method: 'POST',
+                    headers: headers,
+                    body: JSON.stringify(body)
+                })
+            }
+
+            const productRequest = await makeOfferRequest()
+            console.log(productRequest.status())
+
+        }
+    }
+
+    async function mainLoop() {
+        let running = true
+        while (running) {
+            const data = await getDataForParsing()
+            for (const product of data['products']) {
+                await parseProduct(product, data['cities'])
+            }
+            running = false
+        }
+    }
+
+    mainLoop()
+</script>

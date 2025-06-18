@@ -1,0 +1,31 @@
+<div class="pagination">
+    <span class="step-links">
+        {% if page_obj.has_previous %}
+            <a onclick="setUrlParams('page', '1')"><button>&laquo; первая</button></a>
+            {% if page_obj.previous_page_number > 9 %}
+                <a onclick="setUrlParams('page', '{{ page_obj.previous_page_number|add:"-9" }}')"><button>{{ page_obj.previous_page_number|add:"-9" }}</button></a>
+            {% endif %}
+            <a onclick="setUrlParams('page', '{{ page_obj.previous_page_number }}')"><button>предыдущая</button></a>
+        {% endif %}
+
+        <span class="current" style="color: white">
+            Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+        </span>
+
+        {% if page_obj.has_next %}
+            <a onclick="setUrlParams('page', '{{ page_obj.next_page_number }}')"><button>следующая</button></a>
+            {% if page_obj.next_page_number|add:"10" <= page_obj.paginator.num_pages %}
+                <a onclick="setUrlParams('page', '{{ page_obj.next_page_number|add:"9" }}')"><button>{{ page_obj.next_page_number|add:"9" }}</button></a>
+            {% endif %}
+            <a onclick="setUrlParams('page', '{{ page_obj.paginator.num_pages }}')"><button>последняя &raquo;</button></a>
+        {% endif %}
+    </span>
+</div>
+
+<script>
+    function setUrlParams(key, value) {
+        const urlParams = new URLSearchParams(window.location.search)
+        urlParams.set(key, value)
+        window.location.search = urlParams
+    }
+</script>
